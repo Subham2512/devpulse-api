@@ -1,0 +1,72 @@
+datasource db {
+  provider = "sqlite"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+model Repository {
+  id              String            @id @default(cuid())
+  name            String
+  owner           String
+  defaultBranch   String            @default("main")
+  webhookSecret   String?
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+  pullRequests    PullRequest[]
+  metricSnapshots MetricSnapshot[]
+
+  @@unique([owner, name])
+}
+
+model PullRequest {
+  id           String    @id @default(cuid())
+  repoId       String
+  number       Int
+  title        String
+  author       String
+  state        String    @default("open")
+  additions    Int       @default(0)
+  deletions    Int       @default(0)
+  changedFiles Int       @default(0)
+  riskScore    Int       @default(0)
+  riskLevel    String    @default("LOW")
+  riskFactors  String?   @default("[]")
+  openedAt     DateTime  @default(now())
+  closedAt     DateTime?
+  mergedAt     DateTime?
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+
+  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+  reviews    Review[]
+
+  @@unique([repoId, number])
+}
+
+model Review {
+  id             String      @id @default(cuid())
+  prId           String
+  reviewer       String
+  state          String
+  submittedAt    DateTime    @default(now())
+  latencySeconds Int         @default(0)
+
+  pullRequest PullRequest @relation(fields: [prId], references: [id], onDelete: Cascade)
+}
+
+model MetricSnapshot {
+  id                 String     @id @default(cuid())
+  repoId             String
+  periodStart        DateTime
+  periodEnd          DateTime
+  avgTurnaroundHours Float      @default(0.0)
+  p95TurnaroundHours Float      @default(0.0)
+  totalPRs           Int        @default(0)
+  highRiskCount      Int        @default(0)
+  createdAt          DateTime   @default(now())
+
+  repository Repository @relation(fields: [repoId], references: [id], onDelete: Cascade)
+}
