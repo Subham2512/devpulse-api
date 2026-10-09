@@ -17,6 +17,7 @@ export class SLAService {
     ): SLAResult {
         const now = new Date().getTime();
         const opened = new Date(pr.openedAt).getTime();
+        if (Number.isNaN(opened)) throw new RangeError('evaluateSLA: invalid openedAt');
         const hoursOpen = Number(((now - opened) / (1000 * 60 * 60)).toFixed(1));
 
         if (pr.state !== 'open') {
