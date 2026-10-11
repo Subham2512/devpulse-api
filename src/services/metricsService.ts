@@ -2,6 +2,7 @@ import { pullRequestRepository } from '../repositories/pullRequestRepository.js'
 import { repoRepository } from '../repositories/repoRepository.js';
 import { AppError } from '../middleware/errorHandler.js';
 import { RepositoryOverview, TurnaroundMetrics } from '../types/index.js';
+import { appCache } from '../lib/cache.js';
 
 export class MetricsService {
   async getTurnaroundMetrics(repoId: string, days = 30): Promise<TurnaroundMetrics> {
@@ -49,8 +50,8 @@ export class MetricsService {
     const avgTurnaroundHours =
       latenciesHours.length > 0
         ? Number(
-            (latenciesHours.reduce((sum, val) => sum + val, 0) / latenciesHours.length).toFixed(2)
-          )
+          (latenciesHours.reduce((sum, val) => sum + val, 0) / latenciesHours.length).toFixed(2)
+        )
         : 0;
 
     const p95TurnaroundHours =
@@ -82,6 +83,12 @@ export class MetricsService {
   }
 
   async getRepositoryOverview(repoId: string): Promise<RepositoryOverview> {
+    const cacheKey = `repo-overview:${repoId}`;
+    const cached = appCache.get<RepositoryOverview>(cacheKey);
+    if (cached) {
+      return cached;
+    }
+
     const repo = await repoRepository.findById(repoId);
     if (!repo) {
       throw new AppError(`Repository with id ${repoId} not found`, 404);
@@ -102,7 +109,7 @@ export class MetricsService {
     const highRiskRatio = prs.length > 0 ? highRiskPRs / prs.length : 0;
     healthScore -= Math.round(highRiskRatio * 40);
 
-    return {
+    const result: RepositoryOverview = {
       id: repo.id,
       owner: repo.owner,
       name: repo.name,
@@ -112,6 +119,11 @@ export class MetricsService {
       avgTurnaroundHours: metrics.avgTurnaroundHours,
       healthScore: Math.max(0, healthScore)
     };
+
+    // Cache the overview for 60 seconds
+    appCache.set(cacheKey, result, 60);
+
+    return result;
   }
 }
 
